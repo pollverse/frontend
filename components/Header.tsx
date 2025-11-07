@@ -5,8 +5,8 @@ import Image from "next/image";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAppKitAccount } from "@reown/appkit/react";
-// import { CustomNetworkButton } from "./CustomNetworkButton";
-// import { CustomConnectButton } from "./CustomConnectButton";
+import { CustomNetworkButton } from "./CustomNetworkButton";
+import { CustomConnectButton } from "./CustomConnectButton";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -62,8 +62,8 @@ const Header = () => {
             </nav>
 
           <div className="hidden md:ml-4 md:shrink-0 md:flex md:items-center space-x-2">
-            {/* <CustomConnectButton /> */}
-            {/* <CustomNetworkButton /> */}
+            <CustomConnectButton />
+            <CustomNetworkButton />
           </div>
 
           {/* Mobile menu button */}
@@ -132,8 +132,8 @@ const Header = () => {
           </div>
           <div className="pt-4 pb-3 border-t border-gray-200">
             <div className="flex items-center px-4 space-x-2">
-              {/* <CustomConnectButton /> */}
-              {/* <CustomNetworkButton /> */}
+              <CustomConnectButton />
+              <CustomNetworkButton />
             </div>
           </div>
         </div>

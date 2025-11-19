@@ -1,10 +1,10 @@
 "use client";
 
-import { useNetwork, useSwitchNetwork } from 'wagmi';
+import { useAccount, useSwitchChain } from 'wagmi';
 import { mainnet, polygon, optimism, arbitrum, base, zora } from 'viem/chains';
 import { CustomButton } from "./ui/CustomButton";
 import Image from "next/image";
-import { Chain } from 'viem';
+// import { Chain } from 'viem';
 import { ChevronDown } from 'lucide-react';
 
 const SUPPORTED_CHAINS = [mainnet, polygon, optimism, arbitrum, base, zora];
@@ -28,15 +28,17 @@ const CHAIN_NAMES: Record<number, string> = {
 };
 
 export function CustomNetworkButton() {
-  const { chain } = useNetwork();
-  const { chains, switchNetwork } = useSwitchNetwork();
+  const { chain } = useAccount();
+  const { chains, switchChain } = useSwitchChain();
+
+  const currentChain = chains.find((c) => c.id === chain?.id);
   
-  const currentChain = chain ? SUPPORTED_CHAINS.find((c) => c.id === chain.id) : null;
-  const isUnsupported = chain?.unsupported ?? false;
+  // const currentChain = chain ? SUPPORTED_CHAINS.find((c) => c.id === chain.id) : null;
+  const isUnsupported = chain == null || undefined;
 
   const handleNetworkChange = (chainId: number) => {
-    if (switchNetwork) {
-      switchNetwork(chainId);
+    if (switchChain) {
+      switchChain({ chainId });
     }
   };
 
@@ -54,16 +56,15 @@ export function CustomNetworkButton() {
             />
           ) : null
         }
-        label={
-          isUnsupported 
-            ? 'Unsupported Network' 
-            : currentChain 
-              ? CHAIN_NAMES[currentChain.id] || currentChain.name
-              : 'Select Network'
-        }
         variant="secondary"
         className="flex items-center gap-1"
       >
+        {isUnsupported 
+          ? 'Unsupported Network' 
+          : currentChain 
+            ? CHAIN_NAMES[currentChain.id] || currentChain.name
+            : 'Select Network'
+        }
         <ChevronDown className="w-4 h-4 ml-1" />
       </CustomButton>
       

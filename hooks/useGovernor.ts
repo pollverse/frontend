@@ -77,3 +77,9 @@ export function useCastVoteWithReason(params: { address: Address; abi: Abi }) {
   const receipt = useWaitForTransactionReceipt({ hash, query: { enabled: Boolean(hash) } })
   return { castVoteWithReason, txHash: hash, isPending, error, receipt }
 }
+
+export function useGovernor(params: { address: Address; abi: Abi }) {
+  const { address, abi } = params
+  const { data } = useReadContract({ address, abi, functionName: "getGovernorData", query: { refetchOnWindowFocus: true } })
+  return data
+}

@@ -11,6 +11,8 @@ export function CustomConnectButton() {
   const { disconnect } = useDisconnect();
   const router = useRouter();
 
+  const shortAddress = address?.slice(0, 6) + '...' + address?.slice(-4);
+
   const handleClick = () => {
     if (isConnected && address) {
       disconnect();
@@ -32,21 +34,18 @@ export function CustomConnectButton() {
     >
       {isConnecting ? 'Connecting...' : 
        isConnected && address ? 
-       `${address.slice(0, 6)}...${address.slice(-4)}` : 
+       `${shortAddress}` : 
        'Connect Wallet'}
     </CustomButton>
   );
-  const { address, isConnected } = useAccount()
-  const { disconnect } = useDisconnect()
 
   if (isConnected && address) {
     return (
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">
-          {`${address.slice(0, 6)}...${address.slice(-4)}`}
+          {shortAddress}
         </span>
         <CustomButton 
-          label="Disconnect"
           onClick={() => disconnect()}
           variant="secondary"
         />
@@ -58,7 +57,6 @@ export function CustomConnectButton() {
     <RainbowConnectButton.Custom>
       {({ openConnectModal }) => (
         <CustomButton
-          label="Connect Wallet"
           onClick={openConnectModal}
           variant="primary"
         />

@@ -32,3 +32,9 @@ export function useWithdrawToken(params: { address: Address; abi: Abi }) {
   const receipt = useWaitForTransactionReceipt({ hash, query: { enabled: Boolean(hash) } })
   return { withdrawToken, txHash: hash, isPending, error, receipt }
 }
+
+export function useTreasury(params: { address: Address; abi: Abi }) {
+  const { address, abi } = params
+  const { data } = useReadContract({ address, abi, functionName: "getTreasuryData", query: { refetchOnWindowFocus: true } })
+  return data
+}

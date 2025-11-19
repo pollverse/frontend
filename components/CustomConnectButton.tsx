@@ -1,26 +1,37 @@
-// components/CustomConnectButton.tsx
 "use client"
 
-import { useAppKit, useAppKitAccount } from "@reown/appkit/react"
+import { useAccount, useDisconnect } from 'wagmi'
+import { ConnectButton as RainbowConnectButton } from '@rainbow-me/rainbowkit'
 import { CustomButton } from "./ui/CustomButton"
 
 export function CustomConnectButton() {
-  const { open } = useAppKit()
-  const { isConnected, address } = useAppKitAccount()
+  const { address, isConnected } = useAccount()
+  const { disconnect } = useDisconnect()
 
-  const handleClick = () => {
-    if (isConnected) {
-      open({ view: "Account" })
-    } else {
-      open({ view: "Connect" })
-    }
+  if (isConnected && address) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium">
+          {`${address.slice(0, 6)}...${address.slice(-4)}`}
+        </span>
+        <CustomButton 
+          label="Disconnect"
+          onClick={() => disconnect()}
+          variant="secondary"
+        />
+      </div>
+    )
   }
 
   return (
-    <CustomButton
-      label={isConnected ? `${address?.slice(0, 6)}...${address?.slice(-4)}` : "Connect Wallet"}
-      onClick={handleClick}
-      variant="primary"
-    />
+    <RainbowConnectButton.Custom>
+      {({ openConnectModal }) => (
+        <CustomButton
+          label="Connect Wallet"
+          onClick={openConnectModal}
+          variant="primary"
+        />
+      )}
+    </RainbowConnectButton.Custom>
   )
 }

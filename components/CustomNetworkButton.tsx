@@ -1,50 +1,73 @@
 "use client";
 
+import { useState, useRef, useEffect } from 'react';
 import { useAccount, useSwitchChain } from 'wagmi';
-import { mainnet, polygon, optimism, arbitrum, base, zora } from 'viem/chains';
+import { celoSepolia, baseSepolia } from 'viem/chains';
 import { CustomButton } from "./ui/CustomButton";
 import Image from "next/image";
-// import { Chain } from 'viem';
 import { ChevronDown } from 'lucide-react';
-
-const SUPPORTED_CHAINS = [mainnet, polygon, optimism, arbitrum, base, zora];
+import { chains as supportedChains } from "../providers/RainbowKitProvider";
 
 const CHAIN_ICONS: Record<number, string> = {
-  [mainnet.id]: '/ethereum.png',
-  [polygon.id]: '/polygon.png',
-  [optimism.id]: '/optimism.png',
-  [arbitrum.id]: '/arbitrum.png',
-  [base.id]: '/base.png',
-  [zora.id]: '/zora.png',
+  [celoSepolia.id]: '/celo.png',
+  [baseSepolia.id]: '/base.png',
 };
 
 const CHAIN_NAMES: Record<number, string> = {
-  [mainnet.id]: 'Ethereum',
-  [polygon.id]: 'Polygon',
-  [optimism.id]: 'Optimism',
-  [arbitrum.id]: 'Arbitrum',
-  [base.id]: 'Base',
-  [zora.id]: 'Zora',
+  [celoSepolia.id]: 'Celo Sepolia',
+  [baseSepolia.id]: 'Base Sepolia',
 };
 
 export function CustomNetworkButton() {
   const { chain } = useAccount();
-  const { chains, switchChain } = useSwitchChain();
+  const { chains: availableChains, switchChain } = useSwitchChain();
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const currentChain = chains.find((c) => c.id === chain?.id);
-  
-  // const currentChain = chain ? SUPPORTED_CHAINS.find((c) => c.id === chain.id) : null;
-  const isUnsupported = chain == null || undefined;
+  const currentChain = chain && availableChains.find((c) => c.id === chain.id);
+  const isUnsupported = !chain || !availableChains.some((c) => c.id === chain.id);
 
-  const handleNetworkChange = (chainId: number) => {
-    if (switchChain) {
-      switchChain({ chainId });
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  const handleNetworkChange = async (chainId: number) => {
+    try {
+      await switchChain({ chainId });
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Failed to switch network:', error);
+      // TODO: Add toast notification
+    }
+  };
+
+  const toggleDropdown = () => {
+    setIsOpen(!isOpen);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      setIsOpen(false);
     }
   };
 
   return (
-    <div className="relative group">
+    <div className="relative" ref={dropdownRef}>
       <CustomButton
+        onClick={toggleDropdown}
         icon={
           currentChain && CHAIN_ICONS[currentChain.id] ? (
             <Image
@@ -58,6 +81,8 @@ export function CustomNetworkButton() {
         }
         variant="secondary"
         className="flex items-center gap-1"
+        aria-haspopup="true"
+        aria-expanded={isOpen}
       >
         {isUnsupported 
           ? 'Unsupported Network' 
@@ -65,40 +90,50 @@ export function CustomNetworkButton() {
             ? CHAIN_NAMES[currentChain.id] || currentChain.name
             : 'Select Network'
         }
-        <ChevronDown className="w-4 h-4 ml-1" />
+        <ChevronDown 
+          className={`w-4 h-4 ml-1 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+        />
       </CustomButton>
       
-      <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 focus:outline-none z-50 hidden group-hover:block">
-        <div className="py-1">
-          {SUPPORTED_CHAINS.map((supportedChain) => (
-            <button
-              key={supportedChain.id}
-              onClick={() => handleNetworkChange(supportedChain.id)}
-              className={`flex items-center w-full px-4 py-2 text-sm text-left ${
-                chain?.id === supportedChain.id
-                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
-              }`}
-            >
-              {CHAIN_ICONS[supportedChain.id] && (
-                <Image
-                  src={CHAIN_ICONS[supportedChain.id]}
-                  alt={supportedChain.name}
-                  width={20}
-                  height={20}
-                  className="rounded-full mr-2"
-                />
-              )}
-              <span>{CHAIN_NAMES[supportedChain.id] || supportedChain.name}</span>
-              {chain?.id === supportedChain.id && (
-                <span className="ml-auto text-green-500">
-                  ✓
-                </span>
-              )}
-            </button>
-          ))}
+      {isOpen && (
+        <div 
+          className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 focus:outline-none z-50"
+          role="menu"
+          aria-orientation="vertical"
+          onKeyDown={handleKeyDown}
+        >
+          <div className="py-1">
+            {supportedChains.map((supportedChain) => (
+              <button
+                key={supportedChain.id}
+                onClick={() => handleNetworkChange(supportedChain.id)}
+                role="menuitem"
+                className={`flex items-center w-full px-4 py-2 text-sm text-left transition-colors ${
+                  chain?.id === supportedChain.id
+                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                {CHAIN_ICONS[supportedChain.id] && (
+                  <Image
+                    src={CHAIN_ICONS[supportedChain.id]}
+                    alt={supportedChain.name}
+                    width={20}
+                    height={20}
+                    className="rounded-full mr-2"
+                  />
+                )}
+                <span>{CHAIN_NAMES[supportedChain.id] || supportedChain.name}</span>
+                {chain?.id === supportedChain.id && (
+                  <span className="ml-auto text-green-500" aria-label="Currently selected">
+                    ✓
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
 import { WagmiProvider, createConfig, http } from 'wagmi';
-import { mainnet, polygon, optimism, arbitrum, base, zora } from 'wagmi/chains';
+import { baseSepolia, celoSepolia } from 'wagmi/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
@@ -13,7 +13,7 @@ import {
   metaMaskWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 
-const chains = [mainnet, polygon, optimism, arbitrum, base, zora] as const;
+export const chains = [celoSepolia, baseSepolia] as const;
 
 const connectors = connectorsForWallets(
   [
@@ -32,12 +32,8 @@ const wagmiConfig = createConfig({
   connectors,
   chains,
   transports: {
-    [mainnet.id]: http(),
-    [polygon.id]: http(),
-    [optimism.id]: http(),
-    [arbitrum.id]: http(),
-    [base.id]: http(),
-    [zora.id]: http(),
+    [celoSepolia.id]: http(),
+    [baseSepolia.id]: http(),
   },
 });
 

@@ -2,34 +2,35 @@ import { useCallback } from 'react';
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useConfig } from 'wagmi';
 import { readContract } from '@wagmi/core';
 import { Address } from 'viem';
-import { governorAbi } from '@/lib/abi/core/governor';
+import { DGPGovernor } from '@/lib/abis';
 
 export type VoteType = 0 | 1 | 2; // 0=Against, 1=For, 2=Abstain
 export type ProposalState = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7; // Pending, Active, Canceled, Defeated, Succeeded, Queued, Expired, Executed
 
 export interface ProposalMetadata {
-  title: string;
-  description: string;
-  proposalType: string;
-  proposedSolution: string;
-  rationale: string;
-  expectedOutcomes: string;
-  timeline: string;
-  budget: string;
   proposer: Address;
   timestamp: bigint;
-  status: number;
-  votesFor: bigint;
-  votesAgainst: bigint;
-  quorumReachedPct: bigint;
+  metadataURI: string;
 }
 
 export interface CreateProposalParams {
   targets: Address[];
   values: bigint[];
   calldatas: string[];
+  metadataURI: string;
+}
+
+export interface ProposeParams {
+  targets: Address[];
+  values: bigint[];
+  calldatas: string[];
   description: string;
-  metadata?: Omit<ProposalMetadata, 'proposer' | 'timestamp' | 'status' | 'votesFor' | 'votesAgainst' | 'quorumReachedPct'>;
+}
+
+export interface ProposalVotes {
+  againstVotes: bigint;
+  forVotes: bigint;
+  abstainVotes: bigint;
 }
 
 export const useGovernor = (contractAddress?: Address) => {
@@ -42,7 +43,7 @@ export const useGovernor = (contractAddress?: Address) => {
     refetch: refetchToken,
   } = useReadContract({
     address: contractAddress,
-    abi: governorAbi,
+    abi: DGPGovernor,
     functionName: 'token',
     query: {
       enabled: !!contractAddress,
@@ -55,7 +56,7 @@ export const useGovernor = (contractAddress?: Address) => {
     refetch: refetchTimelock,
   } = useReadContract({
     address: contractAddress,
-    abi: governorAbi,
+    abi: DGPGovernor,
     functionName: 'timelock',
     query: {
       enabled: !!contractAddress,
@@ -68,7 +69,7 @@ export const useGovernor = (contractAddress?: Address) => {
     refetch: refetchVotingDelay,
   } = useReadContract({
     address: contractAddress,
-    abi: governorAbi,
+    abi: DGPGovernor,
     functionName: 'votingDelay',
     query: {
       enabled: !!contractAddress,
@@ -81,7 +82,7 @@ export const useGovernor = (contractAddress?: Address) => {
     refetch: refetchVotingPeriod,
   } = useReadContract({
     address: contractAddress,
-    abi: governorAbi,
+    abi: DGPGovernor,
     functionName: 'votingPeriod',
     query: {
       enabled: !!contractAddress,
@@ -94,7 +95,7 @@ export const useGovernor = (contractAddress?: Address) => {
     refetch: refetchProposalThreshold,
   } = useReadContract({
     address: contractAddress,
-    abi: governorAbi,
+    abi: DGPGovernor,
     functionName: 'proposalThreshold',
     query: {
       enabled: !!contractAddress,
@@ -107,7 +108,7 @@ export const useGovernor = (contractAddress?: Address) => {
     refetch: refetchQuorumPercentage,
   } = useReadContract({
     address: contractAddress,
-    abi: governorAbi,
+    abi: DGPGovernor,
     functionName: 'quorumPercentage',
     query: {
       enabled: !!contractAddress,
@@ -115,6 +116,14 @@ export const useGovernor = (contractAddress?: Address) => {
   });
 
   // Write operations
+  const { 
+    writeContractAsync: createProposalAsync, 
+    data: createProposalTxHash,
+    isPending: isCreateProposalLoading,
+    error: createProposalError,
+    reset: resetCreateProposal
+  } = useWriteContract();
+
   const { 
     writeContractAsync: proposeAsync, 
     data: proposeTxHash,
@@ -160,6 +169,10 @@ export const useGovernor = (contractAddress?: Address) => {
   } = useWriteContract();
 
   // Wait for transaction receipts
+  const { isLoading: isWaitingForCreateProposal } = useWaitForTransactionReceipt({
+    hash: createProposalTxHash,
+  });
+
   const { isLoading: isWaitingForPropose } = useWaitForTransactionReceipt({
     hash: proposeTxHash,
   });
@@ -187,7 +200,7 @@ export const useGovernor = (contractAddress?: Address) => {
     try {
       const state = await readContract(config, {
         address: contractAddress,
-        abi: governorAbi,
+        abi: DGPGovernor,
         functionName: 'state',
         args: [proposalId],
       });
@@ -205,30 +218,20 @@ export const useGovernor = (contractAddress?: Address) => {
     try {
       const metadata = await readContract(config, {
         address: contractAddress,
-        abi: governorAbi,
+        abi: DGPGovernor,
         functionName: 'getProposalMetadata',
         args: [proposalId],
       });
       
       if (!metadata) return null;
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data = metadata as any[];
+      // The ABI returns a tuple with 3 fields
+      const [proposer, timestamp, metadataURI] = metadata as [Address, bigint, string];
+      
       return {
-        title: data[0],
-        description: data[1],
-        proposalType: data[2],
-        proposedSolution: data[3],
-        rationale: data[4],
-        expectedOutcomes: data[5],
-        timeline: data[6],
-        budget: data[7],
-        proposer: data[8],
-        timestamp: data[9],
-        status: data[10],
-        votesFor: data[11],
-        votesAgainst: data[12],
-        quorumReachedPct: data[13],
+        proposer,
+        timestamp,
+        metadataURI,
       };
     } catch (error) {
       console.error('Error fetching proposal metadata:', error);
@@ -236,8 +239,52 @@ export const useGovernor = (contractAddress?: Address) => {
     }
   }, [contractAddress, config]);
 
-  // Create a new proposal
+  // Get metadata URI for a proposal
+  const getMetadataURI = useCallback(async (proposalId: bigint): Promise<string | null> => {
+    if (!contractAddress) return null;
+    
+    try {
+      const uri = await readContract(config, {
+        address: contractAddress,
+        abi: DGPGovernor,
+        functionName: 'getMetadataURI',
+        args: [proposalId],
+      });
+      
+      return uri as string;
+    } catch (error) {
+      console.error('Error fetching metadata URI:', error);
+      return null;
+    }
+  }, [contractAddress, config]);
+
+  // Create a new proposal with metadata URI
   const createProposal = useCallback(async (params: CreateProposalParams) => {
+    if (!contractAddress) {
+      throw new Error('Contract address not provided');
+    }
+
+    const { targets, values, calldatas, metadataURI } = params;
+
+    resetCreateProposal();
+
+    try {
+      const hash = await createProposalAsync({
+        address: contractAddress,
+        abi: DGPGovernor,
+        functionName: 'createProposal',
+        args: [targets, values, calldatas, metadataURI],
+      });
+
+      return hash;
+    } catch (error) {
+      console.error('Error creating proposal:', error);
+      throw error;
+    }
+  }, [contractAddress, createProposalAsync, resetCreateProposal]);
+
+  // Create a standard proposal with description
+  const propose = useCallback(async (params: ProposeParams) => {
     if (!contractAddress) {
       throw new Error('Contract address not provided');
     }
@@ -249,14 +296,14 @@ export const useGovernor = (contractAddress?: Address) => {
     try {
       const hash = await proposeAsync({
         address: contractAddress,
-        abi: governorAbi,
+        abi: DGPGovernor,
         functionName: 'propose',
         args: [targets, values, calldatas, description],
       });
 
       return hash;
     } catch (error) {
-      console.error('Error creating proposal:', error);
+      console.error('Error proposing:', error);
       throw error;
     }
   }, [contractAddress, proposeAsync, resetPropose]);
@@ -272,7 +319,7 @@ export const useGovernor = (contractAddress?: Address) => {
     try {
       const hash = await castVoteAsync({
         address: contractAddress,
-        abi: governorAbi,
+        abi: DGPGovernor,
         functionName: 'castVote',
         args: [proposalId, support],
       });
@@ -297,7 +344,7 @@ export const useGovernor = (contractAddress?: Address) => {
     try {
       const hash = await castVoteWithReasonAsync({
         address: contractAddress,
-        abi: governorAbi,
+        abi: DGPGovernor,
         functionName: 'castVoteWithReason',
         args: [proposalId, support, reason],
       });
@@ -335,7 +382,7 @@ export const useGovernor = (contractAddress?: Address) => {
     try {
       const hash = await queueAsync({
         address: contractAddress,
-        abi: governorAbi,
+        abi: DGPGovernor,
         functionName: 'queue',
         args: [targets, values, calldatas, descriptionHash],
       });
@@ -361,7 +408,7 @@ export const useGovernor = (contractAddress?: Address) => {
     try {
       const hash = await executeAsync({
         address: contractAddress,
-        abi: governorAbi,
+        abi: DGPGovernor,
         functionName: 'execute',
         args: [targets, values, calldatas, descriptionHash],
       });
@@ -387,7 +434,7 @@ export const useGovernor = (contractAddress?: Address) => {
     try {
       const hash = await cancelAsync({
         address: contractAddress,
-        abi: governorAbi,
+        abi: DGPGovernor,
         functionName: 'cancel',
         args: [targets, values, calldatas, descriptionHash],
       });
@@ -399,6 +446,27 @@ export const useGovernor = (contractAddress?: Address) => {
     }
   }, [contractAddress, cancelAsync]);
 
+  // Update metadata URI for a proposal
+  const updateMetadataURI = useCallback(async (proposalId: bigint, newURI: string) => {
+    if (!contractAddress) {
+      throw new Error('Contract address not provided');
+    }
+
+    try {
+      const hash = await proposeAsync({
+        address: contractAddress,
+        abi: DGPGovernor,
+        functionName: 'updateMetadataURI',
+        args: [proposalId, newURI],
+      });
+
+      return hash;
+    } catch (error) {
+      console.error('Error updating metadata URI:', error);
+      throw error;
+    }
+  }, [contractAddress, proposeAsync]);
+
   // Check if an account has voted on a proposal
   const hasVoted = useCallback(async (proposalId: bigint, account: Address): Promise<boolean> => {
     if (!contractAddress) return false;
@@ -406,7 +474,7 @@ export const useGovernor = (contractAddress?: Address) => {
     try {
       const result = await readContract(config, {
         address: contractAddress,
-        abi: governorAbi,
+        abi: DGPGovernor,
         functionName: 'hasVoted',
         args: [proposalId, account],
       });
@@ -417,16 +485,16 @@ export const useGovernor = (contractAddress?: Address) => {
     }
   }, [contractAddress, config]);
 
-  // Get vote power for an account at a specific block
-  const getVotes = useCallback(async (account: Address, blockNumber: bigint): Promise<bigint> => {
+  // Get vote power for an account at a specific timepoint
+  const getVotes = useCallback(async (account: Address, timepoint: bigint): Promise<bigint> => {
     if (!contractAddress) return 0n;
     
     try {
       const result = await readContract(config, {
         address: contractAddress,
-        abi: governorAbi,
+        abi: DGPGovernor,
         functionName: 'getVotes',
-        args: [account, blockNumber],
+        args: [account, timepoint],
       });
       return BigInt(String(result) || '0');
     } catch (error) {
@@ -436,28 +504,92 @@ export const useGovernor = (contractAddress?: Address) => {
   }, [contractAddress, config]);
 
   // Get proposal votes (for, against, abstain)
-  const getProposalVotes = useCallback(async (proposalId: bigint) => {
+  const getProposalVotes = useCallback(async (proposalId: bigint): Promise<ProposalVotes | null> => {
     if (!contractAddress) return null;
     
     try {
       const result = await readContract(config, {
         address: contractAddress,
-        abi: governorAbi,
+        abi: DGPGovernor,
+        functionName: 'getProposalVotes',
+        args: [proposalId],
+      });
+      
+      if (!result) return null;
+      
+      // The function returns 3 separate uint256 values
+      const [againstVotes, forVotes, abstainVotes] = result as [bigint, bigint, bigint];
+      
+      return {
+        againstVotes,
+        forVotes,
+        abstainVotes,
+      };
+    } catch (error) {
+      console.error('Error getting proposal votes:', error);
+      return null;
+    }
+  }, [contractAddress, config]);
+
+  // Get proposal votes using proposalVotes function
+  const proposalVotes = useCallback(async (proposalId: bigint): Promise<ProposalVotes | null> => {
+    if (!contractAddress) return null;
+    
+    try {
+      const result = await readContract(config, {
+        address: contractAddress,
+        abi: DGPGovernor,
         functionName: 'proposalVotes',
         args: [proposalId],
       });
       
       if (!result) return null;
       
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data = result as any[];
+      const [againstVotes, forVotes, abstainVotes] = result as [bigint, bigint, bigint];
+      
       return {
-        againstVotes: data[0] as bigint,
-        forVotes: data[1] as bigint,
-        abstainVotes: data[2] as bigint,
+        againstVotes,
+        forVotes,
+        abstainVotes,
       };
     } catch (error) {
       console.error('Error getting proposal votes:', error);
+      return null;
+    }
+  }, [contractAddress, config]);
+
+  // Get proposal deadline
+  const getProposalDeadline = useCallback(async (proposalId: bigint): Promise<bigint | null> => {
+    if (!contractAddress) return null;
+    
+    try {
+      const deadline = await readContract(config, {
+        address: contractAddress,
+        abi: DGPGovernor,
+        functionName: 'proposalDeadline',
+        args: [proposalId],
+      });
+      return BigInt(String(deadline) || '0');
+    } catch (error) {
+      console.error('Error getting proposal deadline:', error);
+      return null;
+    }
+  }, [contractAddress, config]);
+
+  // Get proposal snapshot
+  const getProposalSnapshot = useCallback(async (proposalId: bigint): Promise<bigint | null> => {
+    if (!contractAddress) return null;
+    
+    try {
+      const snapshot = await readContract(config, {
+        address: contractAddress,
+        abi: DGPGovernor,
+        functionName: 'proposalSnapshot',
+        args: [proposalId],
+      });
+      return BigInt(String(snapshot) || '0');
+    } catch (error) {
+      console.error('Error getting proposal snapshot:', error);
       return null;
     }
   }, [contractAddress, config]);
@@ -482,7 +614,7 @@ export const useGovernor = (contractAddress?: Address) => {
   ]);
 
   return {
-    // Contract state (return raw data, no unnecessary local state)
+    // Contract state
     votingToken: tokenAddress as Address | undefined,
     timelock: timelockAddress as Address | undefined,
     votingDelay: votingDelayData ? BigInt(votingDelayData.toString()) : 0n,
@@ -493,6 +625,7 @@ export const useGovernor = (contractAddress?: Address) => {
     // Loading states
     isLoading: isLoadingToken || isLoadingTimelock || isLoadingVotingDelay || 
                isLoadingVotingPeriod || isLoadingProposalThreshold || isLoadingQuorumPercentage,
+    isCreatingProposal: isCreateProposalLoading || isWaitingForCreateProposal,
     isProposing: isProposeLoading || isWaitingForPropose,
     isVoting: isVoteLoading || isVoteWithReasonLoading || isWaitingForVote,
     isExecuting: isExecuteLoading || isWaitingForExecute,
@@ -500,6 +633,7 @@ export const useGovernor = (contractAddress?: Address) => {
     isQueuing: isQueueLoading || isWaitingForQueue,
     
     // Errors
+    createProposalError: createProposalError?.message || null,
     proposeError: proposeError?.message || null,
     voteError: voteError?.message || voteWithReasonError?.message || null,
     executeError: executeError?.message || null,
@@ -508,25 +642,31 @@ export const useGovernor = (contractAddress?: Address) => {
 
     // Actions
     createProposal,
+    propose,
     vote,
     castVote,
     castVoteWithReason,
     queue,
     execute,
     cancel,
+    updateMetadataURI,
     
     // Query functions
     hasVoted,
     getVotes,
     getProposalState,
     getProposalMetadata,
+    getMetadataURI,
     getProposalVotes,
+    proposalVotes,
+    getProposalDeadline,
+    getProposalSnapshot,
     refresh,
 
     // Contract info
     contract: {
       address: contractAddress,
-      abi: governorAbi,
+      abi: DGPGovernor,
     },
   };
 }
@@ -537,40 +677,48 @@ export default useGovernor;
 
 const { 
   createProposal,
+  propose,
   vote,
   queue,
   execute,
   votingToken,
   votingPeriod,
   isLoading,
+  isCreatingProposal,
   isProposing,
   isVoting
 } = useGovernor(governorAddress);
 
-// Create a new proposal
+// Create a new proposal with metadata URI (recommended)
 const handleCreateProposal = async () => {
   try {
     const hash = await createProposal({
       targets: [targetContractAddress],
       values: [0n],
       calldatas: [encodedFunctionData],
-      description: "Proposal to update protocol parameters",
-      metadata: {
-        title: "Update Protocol Parameters",
-        description: "This proposal updates key protocol parameters",
-        proposalType: "Parameter Update",
-        proposedSolution: "Adjust the interest rate to 5%",
-        rationale: "Current rates are not sustainable",
-        expectedOutcomes: "Better capital efficiency",
-        timeline: "Immediate upon execution",
-        budget: "No additional budget required"
-      }
+      metadataURI: "ipfs://QmXxx..." // IPFS URI containing proposal metadata
     });
     
     console.log("Proposal transaction:", hash);
-    // Wait for isProposing to become false for confirmation
+    // Wait for isCreatingProposal to become false for confirmation
   } catch (error) {
     console.error('Failed to create proposal:', error);
+  }
+};
+
+// Create a standard proposal with description
+const handlePropose = async () => {
+  try {
+    const hash = await propose({
+      targets: [targetContractAddress],
+      values: [0n],
+      calldatas: [encodedFunctionData],
+      description: "Proposal to update protocol parameters"
+    });
+    
+    console.log("Proposal transaction:", hash);
+  } catch (error) {
+    console.error('Failed to propose:', error);
   }
 };
 
@@ -589,25 +737,13 @@ const handleVote = async (proposalId: bigint, support: VoteType) => {
   }
 };
 
-// Queue and execute a proposal (for TimelockController)
-const handleQueueAndExecute = async (
-  targets: Address[],
-  values: bigint[],
-  calldatas: string[],
-  descriptionHash: string
-) => {
-  try {
-    // First queue the proposal
-    const queueHash = await queue(targets, values, calldatas, descriptionHash);
-    console.log("Queued:", queueHash);
-    
-    // Wait for timelock delay...
-    
-    // Then execute
-    const executeHash = await execute(targets, values, calldatas, descriptionHash);
-    console.log("Executed:", executeHash);
-  } catch (error) {
-    console.error('Failed to queue/execute:', error);
+// Get proposal votes
+const getVotes = async (proposalId: bigint) => {
+  const votes = await getProposalVotes(proposalId);
+  if (votes) {
+    console.log("Against:", votes.againstVotes);
+    console.log("For:", votes.forVotes);
+    console.log("Abstain:", votes.abstainVotes);
   }
 };
 

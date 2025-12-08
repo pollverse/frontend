@@ -1,15 +1,23 @@
-import AboutHero from "@/components/AboutHero";
-import MissionAndFeatures from "@/components/MissionAndFeatures";
-import StatsAndTeam from "@/components/StatsAndTeam";
+import Header from '../../components/Header';
+import Footer from '../../components/Footer';
+import AboutHero from '../../components/aboutPage/AboutHero';
+import Mission from '../../components/aboutPage/Mission';
+import DetailedFeatures from '../../components/aboutPage/DetailedFeatures';
+import Stats from '../../components/aboutPage/Stats';
+import Team from '../../components/aboutPage/Team';
 
-export default function AboutPage() {
+export default function About() {
   return (
-    <div className="min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+    <div className="min-h-screen bg-white">
+      <Header />
       <main>
         <AboutHero />
-        <MissionAndFeatures />
-        <StatsAndTeam />
+        <Mission />
+        <DetailedFeatures />
+        <Stats />
+        <Team />
       </main>
+      <Footer />
     </div>
   );
 }

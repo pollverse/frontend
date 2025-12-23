@@ -214,6 +214,7 @@ export function useERC20VotingPower(contractAddress?: Address) {
       hash: transferTxHash,
     });
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { isLoading: isWaitingForApprove, isSuccess: isApproveSuccess } =
     useWaitForTransactionReceipt({
       hash: approveTxHash,

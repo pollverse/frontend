@@ -37,8 +37,8 @@ const Header = () => {
         <div className="flex justify-between h-16">
             <Link href="/" className="shrink-0 flex items-center">
               <Image
-                src="/NexaPollCircle.png"
-                alt="NexaPoll"
+                src="/PollverseCircle.png"
+                alt="Pollverse"
                 width={100}
                 height={100}
                 className="rounded-full object-contain h-16 w-16"

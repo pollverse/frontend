@@ -1,66 +1,95 @@
 import { useMemo, useState } from 'react';
-import { dummyDAOs } from '@/lib/daoData';
+import { useGovernorFactory } from '@/hooks/useGovernorFactory';
+import { GovernorFactory_Address } from '@/lib/addresses';
+
+interface DAO {
+  governor: string;
+  timelock: string;
+  treasury: string;
+  token: string;
+  tokenType: number;
+  createdAt: number;
+  name?: string;
+  description?: string;
+  status?: 'active' | 'new' | 'trending';
+  category?: string;
+  tags?: string[];
+}
 
 export const useDAOFilters = ({
   searchQuery = '',
   selectedCategory = 'all',
   selectedStatus = [],
+  allDAOs = [],
+  isLoading = false,
 }: {
   searchQuery: string;
   selectedCategory: string;
   selectedStatus: string[];
+  allDAOs: DAO[];
+  isLoading: boolean;
 }) => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 9; // 3x3 grid
 
   const filteredDAOs = useMemo(() => {
-    return dummyDAOs.filter(dao => {
+    if (isLoading) return [];
+    
+    return allDAOs.filter(dao => {
       // Filter by category
       if (selectedCategory !== 'all' && dao.category !== selectedCategory) {
         return false;
       }
 
       // Filter by status
-      if (selectedStatus.length > 0 && !selectedStatus.includes(dao.status)) {
+      if (selectedStatus.length > 0 && dao.status && !selectedStatus.includes(dao.status)) {
         return false;
       }
 
       // Filter by search query
       const query = searchQuery.trim().toLowerCase();
       if (query) {
-        return (
-          dao.name.toLowerCase().includes(query) ||
-          dao.description.toLowerCase().includes(query) ||
-          dao.tags.some(tag => tag.toLowerCase().includes(query))
-        );
+        const matchesName = dao.name?.toLowerCase().includes(query) || false;
+        const matchesDescription = dao.description?.toLowerCase().includes(query) || false;
+        const matchesTags = dao.tags?.some(tag => tag.toLowerCase().includes(query)) || false;
+        
+        return matchesName || matchesDescription || matchesTags;
       }
 
       return true;
     });
-  }, [searchQuery, selectedCategory, selectedStatus]);
+  }, [searchQuery, selectedCategory, selectedStatus, allDAOs, isLoading]);
 
   // Get unique categories with counts
   const categoryOptions = useMemo(() => {
-    const counts = dummyDAOs.reduce((acc, dao) => {
-      acc[dao.category] = (acc[dao.category] || 0) + 1;
+    if (isLoading) return [];
+    
+    const counts = allDAOs.reduce((acc, dao) => {
+      if (dao.category) {
+        acc[dao.category] = (acc[dao.category] || 0) + 1;
+      }
       return acc;
     }, {} as Record<string, number>);
 
     return [
-      { id: 'all', label: 'All DAOs', count: dummyDAOs.length },
+      { id: 'all', label: 'All DAOs', count: allDAOs.length },
       ...Object.entries(counts).map(([category, count]) => ({
         id: category,
         label: category.charAt(0).toUpperCase() + category.slice(1),
         count,
       })),
     ];
-  }, []);
+  }, [allDAOs, isLoading]);
 
   // Get unique statuses with counts and colors
   const statusOptions = useMemo(() => {
-    const counts = dummyDAOs.reduce((acc, dao) => {
-      acc[dao.status] = (acc[dao.status] || 0) + 1;
+    if (isLoading) return [];
+    
+    const counts = allDAOs.reduce((acc, dao) => {
+      if (dao.status) {
+        acc[dao.status] = (acc[dao.status] || 0) + 1;
+      }
       return acc;
     }, {} as Record<string, number>);
 
@@ -76,7 +105,7 @@ export const useDAOFilters = ({
       color: statusColors[status] || 'bg-gray-500',
       count,
     }));
-  }, []);
+  }, [allDAOs, isLoading]);
 
   // Calculate paginated DAOs
   const paginatedDAOs = useMemo(() => {
@@ -87,16 +116,16 @@ export const useDAOFilters = ({
   // Calculate total pages
   const totalPages = Math.ceil(filteredDAOs.length / itemsPerPage);
 
-
   return {
     filteredDAOs,
     categoryOptions,
     statusOptions,
-    totalDAOs: dummyDAOs.length,
+    totalDAOs: allDAOs.length,
     currentPage,
     itemsPerPage,
     totalPages,
     paginatedDAOs,
-    setCurrentPage
+    isLoading,
+    setCurrentPage,
   };
 };

@@ -1,16 +1,44 @@
+// version1/components/homePage/DAOGrid.tsx
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { dummyDAOs } from '@/lib/daoData';
-import { getProposalsByDAO } from '@/lib/proposalData';
-import { getActiveProposals } from '@/lib/proposalData';
 import { Search, Users, FileText, Clock, TrendingUp, Zap, Sparkles, X, Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import Link from 'next/link';
+import { useGovernorFactory } from '@/hooks/useGovernorFactory';
+import { useGovernor } from '@/hooks/useDGPGovernor';
 import { useDAOFilters } from '@/hooks/useDAOFilters';
 import Image from 'next/image';
+import { GovernorFactory_Address } from '@/lib/addresses';
 
-// Memoize the DAO card component to prevent unnecessary re-renders
-const DAOCard = React.memo(({ dao }: { dao: typeof dummyDAOs[0] }) => {
+interface DAO {
+  id: string;
+  name: string;
+  description?: string;
+  category?: string;
+  status?: 'active' | 'new' | 'trending';
+  members?: number;
+  address: string;
+  tags?: string[];
+  logo?: string;
+  createdAt?: number;
+  tokenType?: number;
+  token?: string;
+  timelock?: string;
+  treasury?: string;
+}
+
+// Update the DAOCard component
+const DAOCard = React.memo(({ dao }: { dao: DAO }) => {
+  const { 
+    proposals = [],
+    isLoading: isLoadingProposals,
+    error: proposalsError 
+  } = useGovernor(dao.address as `0x${string}`);
+
+  const activeProposals = useMemo(() => {
+    return proposals.filter((p: any) => p.state === 1); // 1 = Active state
+  }, [proposals]);
+
   const statusBadge = useMemo(() => {
     switch (dao.status) {
       case 'trending':
@@ -37,9 +65,6 @@ const DAOCard = React.memo(({ dao }: { dao: typeof dummyDAOs[0] }) => {
     }
   }, [dao.status]);
 
-  const activeProposals = useMemo(() => getActiveProposals(dao.id), [dao.id]);
-  const proposals = useMemo(() => getProposalsByDAO(dao.id), [dao.id]);
-
   const getCategoryColor = useCallback((category: string) => {
     const colors: Record<string, string> = {
       defi: 'bg-blue-100 text-blue-800',
@@ -64,9 +89,19 @@ const DAOCard = React.memo(({ dao }: { dao: typeof dummyDAOs[0] }) => {
                   className="text-blue-600 hover:text-blue-800 transition-colors"
                   aria-label={`View ${dao.name} details`}
                 >
-                  <span className="text-gray-500 text-xl font-medium">
-                    {dao.name.charAt(0) || <Image src={dao.logo} alt={dao.name} width={48} height={48} />}
-                  </span>
+                  {dao.logo ? (
+                    <Image 
+                      src={dao.logo} 
+                      alt={dao.name} 
+                      width={48} 
+                      height={48} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-gray-500 text-xl font-medium">
+                      {dao.name.charAt(0)}
+                    </span>
+                  )}
                 </Link>
               </div>
             </div>
@@ -84,44 +119,44 @@ const DAOCard = React.memo(({ dao }: { dao: typeof dummyDAOs[0] }) => {
                   {statusBadge.label}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-gray-500 line-clamp-2">{dao.description}</p>
+              <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                {dao.description || 'No description available'}
+              </p>
             </div>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(dao.category)}`}>
-            {dao.category.charAt(0).toUpperCase() + dao.category.slice(1)}
-          </span>
-          {dao.tags?.slice(0, 3).map((tag) => (
-            <span key={tag} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-              {tag}
+          {dao.category && (
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(dao.category)}`}>
+              {dao.category.charAt(0).toUpperCase() + dao.category.slice(1)}
             </span>
-          ))}
+          )}
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <Users className="w-3.5 h-3.5 mr-1" />
+            {dao.members?.toLocaleString() || '0'} Members
+          </span>
         </div>
 
         <div className="mt-6 pt-6 border-t border-gray-100">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <dt className="text-sm font-medium text-gray-500">Members</dt>
-              <dd className="mt-1 text-sm font-medium text-gray-900 flex items-center justify-center">
-                <Users className="h-4 w-4 mr-1 text-gray-400" />
-                {(dao.members / 1000).toFixed(1)}K
-              </dd>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Proposals</p>
+              <p className="text-lg font-semibold text-gray-900">
+                {isLoadingProposals ? '...' : proposals.length}
+              </p>
             </div>
-            <div className="text-center">
-              <dt className="text-sm font-medium text-gray-500">Proposals</dt>
-              <dd className="mt-1 text-sm font-medium text-gray-900 flex items-center justify-center">
-                <FileText className="h-4 w-4 mr-1 text-gray-400" />
-                {proposals.length}
-              </dd>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Active</p>
+              <p className="text-lg font-semibold text-green-600">
+                {isLoadingProposals ? '...' : activeProposals.length}
+              </p>
             </div>
-            <div className="text-center">
-              <dt className="text-sm font-medium text-gray-500">Active</dt>
-              <dd className="mt-1 text-sm font-medium text-gray-900 flex items-center justify-center">
-                <Clock className="h-4 w-4 mr-1 text-gray-400" />
-                {activeProposals.length}
-              </dd>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Created</p>
+              <p className="text-sm text-gray-500">
+                {dao.createdAt ? new Date(Number(dao.createdAt) * 1000).toLocaleDateString() : 'N/A'}
+              </p>
             </div>
           </div>
         </div>
@@ -165,18 +200,86 @@ const DAOCardSkeleton = () => (
 );
 
 const DAOGrid: React.FC = () => {
-  // State for filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [daos, setDaos] = useState<DAO[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
+  // Use the governor factory to get all DAOs
+  const { 
+    getDAOById,
+    getAllDAOs,
+    isLoading: isLoadingDAOs,
+    error: daosError 
+  } = useGovernorFactory(GovernorFactory_Address);
+
+  // Fetch DAO details by ID
+  const fetchDAOById = useCallback(async (id: number): Promise<DAO | null> => {
+    try {
+      const daoData = await getDAOById(id);
+      if (!daoData) return null;
+      
+      return {
+        id: `dao-${id}`,
+        name: `DAO ${id + 1}`,
+        description: 'A decentralized autonomous organization',
+        category: 'governance',
+        status: id % 3 === 0 ? 'trending' : id % 2 === 0 ? 'new' : 'active',
+        members: Math.floor(Math.random() * 10000) + 1000,
+        address: daoData.governor,
+        token: daoData.token,
+        timelock: daoData.timelock,
+        treasury: daoData.treasury,
+        tokenType: daoData.tokenType,
+        createdAt: Number(daoData.createdAt),
+        tags: ['governance', 'voting', 'proposals'],
+      };
+    } catch (err) {
+      console.error(`Error fetching DAO with ID ${id}:`, err);
+      return null;
+    }
+  }, [getDAOById]);
+
+  // Fetch all DAOs when the component mounts
+  useEffect(() => {
+    const fetchAllDAOs = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        // First, get all DAO IDs
+        const daoCount = await getAllDAOs?.();
+        if (!daoCount) return;
+        
+        // Then, fetch each DAO's details
+        const daoPromises = [];
+        for (let i = 0; i < daoCount; i++) {
+          daoPromises.push(fetchDAOById(i));
+        }
+        
+        const daoResults = await Promise.all(daoPromises);
+        const validDAOs = daoResults.filter((dao): dao is DAO => dao !== null);
+        
+        setDaos(validDAOs);
+      } catch (err) {
+        console.error('Error fetching DAOs:', err);
+        setError('Failed to load DAOs. Please try again later.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAllDAOs();
+  }, [fetchDAOById, getAllDAOs]);
+
+  // Update the useDAOFilters hook to use the daos state
   const {
     filteredDAOs,
     categoryOptions,
     statusOptions,
-    // totalDAOs,
     currentPage,
     itemsPerPage,
     totalPages,
@@ -186,6 +289,8 @@ const DAOGrid: React.FC = () => {
     searchQuery,
     selectedCategory,
     selectedStatus,
+    allDAOs: daos,
+    isLoading: isLoading || isLoadingDAOs,
   });
 
   // Handle search input change with debounce
@@ -209,15 +314,6 @@ const DAOGrid: React.FC = () => {
     setSelectedStatus([]);
   };
 
-  // Simulate loading state
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, selectedCategory, selectedStatus]);
-
   // Calculate active filter count
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -227,275 +323,283 @@ const DAOGrid: React.FC = () => {
     return count;
   }, [selectedCategory, selectedStatus, searchQuery]);
 
+  // Handle pagination
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Show loading state
+  if (isLoading || isLoadingDAOs) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[...Array(6)].map((_, i) => (
+          <DAOCardSkeleton key={i} />
+        ))}
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error || daosError) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-red-500 text-lg font-medium mb-2">
+          {error || 'Failed to load DAOs'}
+        </div>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  // Show empty state
+  if (daos.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-gray-500 text-lg">No DAOs found</div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Search and Filter Bar */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Search Input */}
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="relative flex-1 max-w-2xl">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-5 w-5 text-gray-400" />
+          </div>
+          <input
+            type="text"
+            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            placeholder="Search DAOs..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsFilterOpen(!isFilterOpen)}
+          className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          <Filter className="h-4 w-4 mr-2" />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-100 text-blue-800 text-xs font-medium">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Filter Panel */}
+      {isFilterOpen && (
+        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Filters</h3>
+            <div className="flex items-center space-x-2">
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Clear all
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFilterOpen(false)}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <input
-              type="text"
-              placeholder="Search DAOs..."
-              value={searchQuery}
-              onChange={handleSearchChange}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            />
           </div>
 
-          {/* Filter Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setIsFilterOpen(!isFilterOpen)}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            <Filter className="h-4 w-4 mr-2 text-gray-500" />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="ml-2 inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-100 text-xs font-medium text-blue-800">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Filter Panel */}
-        {isFilterOpen && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="flex flex-col md:flex-row gap-6">
-              {/* Category Filter */}
-              <div className="flex-1">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Category</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {categoryOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setSelectedCategory(option.id)}
-                      className={`flex items-center justify-between px-3 py-2 text-sm rounded-lg border ${selectedCategory === option.id
-                          ? 'bg-blue-50 border-blue-500 text-blue-700'
-                          : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Category Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Category
+              </label>
+              <div className="space-y-2">
+                {categoryOptions.map((category) => (
+                  <div key={category.id} className="flex items-center">
+                    <input
+                      id={`category-${category.id}`}
+                      name="category"
+                      type="radio"
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                      checked={selectedCategory === category.id}
+                      onChange={() => setSelectedCategory(category.id)}
+                    />
+                    <label
+                      htmlFor={`category-${category.id}`}
+                      className="ml-3 text-sm text-gray-700 flex items-center"
                     >
-                      <span>{option.label}</span>
-                      <span className="ml-2 text-xs font-medium text-gray-500">
-                        {option.count}
+                      {category.label}
+                      <span className="ml-2 text-xs text-gray-500">
+                        ({category.count})
                       </span>
-                    </button>
-                  ))}
-                </div>
+                    </label>
+                  </div>
+                ))}
               </div>
+            </div>
 
-              {/* Status Filter */}
-              <div className="flex-1">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Status</h3>
-                <div className="flex flex-wrap gap-2">
-                  {statusOptions.map((status) => (
-                    <button
-                      key={status.id}
-                      type="button"
-                      onClick={() => toggleStatus(status.id)}
-                      className={`inline-flex items-center px-3 py-2 text-sm rounded-full border ${selectedStatus.includes(status.id)
-                          ? `${status.color.replace('bg-', 'bg-opacity-20 border-')} ${status.color.replace('bg-', 'text-')}`
-                          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
+            {/* Status Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Status
+              </label>
+              <div className="space-y-2">
+                {statusOptions.map((status) => (
+                  <div key={status.id} className="flex items-center">
+                    <input
+                      id={`status-${status.id}`}
+                      name="status"
+                      type="checkbox"
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      checked={selectedStatus.includes(status.id)}
+                      onChange={() => toggleStatus(status.id)}
+                    />
+                    <label
+                      htmlFor={`status-${status.id}`}
+                      className="ml-3 text-sm text-gray-700 flex items-center"
                     >
-                      <span className={`w-2 h-2 rounded-full ${status.color} mr-2`}></span>
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full ${status.color} mr-2`}
+                      ></span>
                       {status.label}
-                      <span className="ml-1 text-xs text-gray-500">
+                      <span className="ml-2 text-xs text-gray-500">
                         ({status.count})
                       </span>
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DAO Grid */}
+      {filteredDAOs.length > 0 ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedDAOs.map((dao) => (
+              <DAOCard key={dao.id} dao={dao} />
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-lg">
+              <div className="flex flex-1 justify-between sm:hidden">
+                <button
+                  onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm text-gray-700">
+                    Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+                    <span className="font-medium">
+                      {Math.min(currentPage * itemsPerPage, filteredDAOs.length)}
+                    </span>{' '}
+                    of <span className="font-medium">{filteredDAOs.length}</span> results
+                  </p>
+                </div>
+                <div>
+                  <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                    <button
+                      onClick={() => handlePageChange(1)}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="sr-only">First</span>
+                      <ChevronsLeft className="h-5 w-5" aria-hidden="true" />
                     </button>
-                  ))}
+                    <button
+                      onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="sr-only">Previous</span>
+                      <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+                    </button>
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                            currentPage === pageNum
+                              ? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
+                              : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:outline-offset-0'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                      className="relative inline-flex items-center px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="sr-only">Next</span>
+                      <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                    </button>
+                    <button
+                      onClick={() => handlePageChange(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="sr-only">Last</span>
+                      <ChevronsRight className="h-5 w-5" aria-hidden="true" />
+                    </button>
+                  </nav>
                 </div>
               </div>
             </div>
-
-            {/* Active Filters */}
-            {(selectedCategory !== 'all' || selectedStatus.length > 0 || searchQuery) && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium text-gray-700">Active Filters</h3>
-                  <button
-                    type="button"
-                    onClick={clearFilters}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-800"
-                  >
-                    Clear all
-                  </button>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedCategory !== 'all' && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {categoryOptions.find(c => c.id === selectedCategory)?.label}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedCategory('all')}
-                        className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-blue-200 text-blue-800 hover:bg-blue-300"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                  {selectedStatus.map((statusId) => {
-                    const status = statusOptions.find(s => s.id === statusId);
-                    if (!status) return null;
-                    return (
-                      <span
-                        key={statusId}
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${status.color.replace('bg-', 'bg-opacity-20 ')} ${status.color.replace('bg-', 'text-')}`}
-                      >
-                        <span className={`w-2 h-2 rounded-full ${status.color} mr-1`}></span>
-                        {status.label}
-                        <button
-                          type="button"
-                          onClick={() => toggleStatus(statusId)}
-                          className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-opacity-30 hover:bg-opacity-40"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    );
-                  })}
-                  {searchQuery && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                      Search: {searchQuery}
-                      <button
-                        type="button"
-                        onClick={() => setSearchQuery('')}
-                        className="ml-1.5 inline-flex items-center justify-center h-4 w-4 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Results Count and Pagination Top */}
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-gray-500">
-          Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
-          <span className="font-medium">
-            {Math.min(currentPage * itemsPerPage, filteredDAOs.length)}
-          </span>{' '}
-          of <span className="font-medium">{filteredDAOs.length}</span> DAOs
-        </p>
-
-        {totalPages > 1 && (
-          <div className="flex items-center space-x-1">
-            <button
-              onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1}
-              className={`p-2 rounded-md ${
-                currentPage === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-100'
-              }`}
-              aria-label="First page"
-            >
-              <ChevronsLeft className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              className={`p-2 rounded-md ${
-                currentPage === 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-100'
-              }`}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            
-            {/* Page numbers */}
-            {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
-              }
-              
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => setCurrentPage(pageNum)}
-                  className={`w-10 h-10 rounded-md text-sm font-medium ${
-                    currentPage === pageNum
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className={`p-2 rounded-md ${
-                currentPage === totalPages ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-100'
-              }`}
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages}
-              className={`p-2 rounded-md ${
-                currentPage === totalPages ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-100'
-              }`}
-              aria-label="Last page"
-            >
-              <ChevronsRight className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* DAO Grid - Use paginationDAOs instead of filteredDAOs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading ? (
-          Array.from({ length: itemsPerPage }).map((_, i) => (
-            <DAOCardSkeleton key={`skeleton-${i}`} />
-          ))
-        ) : paginatedDAOs.length > 0 ? (
-          paginatedDAOs.map((dao) => <DAOCard key={dao.id} dao={dao} />)
-        ) : (
-          <div className="col-span-full text-center py-16 bg-white rounded-2xl border border-gray-200 shadow-sm">
-            <Search className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900">No DAOs found</h3>
-            <p className="mt-2 text-gray-500">
-              Try adjusting your search or filter criteria to find what you&apos;re looking for.
-            </p>
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-            >
-              Clear all filters
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Pagination Bottom - Same as top but without the results count */}
-      {totalPages > 1 && (
-        <div className="flex justify-center mt-8">
-          <div className="flex items-center space-x-1">
-            {/* Same pagination controls as above */}
-          </div>
+          )}
+        </>
+      ) : (
+        <div className="text-center py-12">
+          <div className="text-gray-500 text-lg">No DAOs match your filters</div>
+          <button
+            onClick={clearFilters}
+            className="mt-4 text-blue-600 hover:text-blue-800 text-sm font-medium"
+          >
+            Clear all filters
+          </button>
         </div>
       )}
     </div>
